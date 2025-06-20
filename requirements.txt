@@ -1,7 +1,9 @@
-faiss-cpu                 1.7.4
-langchain                 0.0.279
-openai                    0.28.0
-PyPDF2                    3.0.1
-streamlit                 1.26.0
-tiktoken                  0.4.0
-python-dotenv             1.0.0
+streamlit
+PyPDF2
+langchain
+transformers
+torch
+pinecone-client
+openai
+ollama
+accelerate
