@@ -13,7 +13,7 @@ from langchain.chains import LLMChain
 import os
 
 def main():
-    os.environ["OPENAI_API_KEY"] = "api"
+    os.environ["OPENAI_API_KEY"] = st.secrets["OPENAI_API_KEY"]
     st.set_page_config(page_title="Intelliread")
     # Display the heading and subheading with default styling
     # st.image('logo.jpeg',width=200)
@@ -55,7 +55,7 @@ def main():
         progress_bar.progress(75)
         #st.write(embeddings[0])
         #pinecone setup
-        pinecone.init(api_key='40d8baa1-0741-44ac-b7a1-ae2b9430360e', environment='gcp-starter')
+        pinecone.init(api_key=st.secrets["PINECONE_API_KEY"], environment=st.secrets["PINECONE_ENVIRONMENT"])
         index_name = "testing"
         if index_name not in pinecone.list_indexes():
             pinecone.create_index(index_name=index_name, metric="cosine", shards=1)
