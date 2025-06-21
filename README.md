@@ -184,7 +184,7 @@ streamlit run main.py
 # Access at http://localhost:8501
 ```
 
-## 🤝 Contributing
+##  Contributing
 
 1. Fork the repository
 2. Create a feature branch (`git checkout -b feature/amazing-feature`)
@@ -196,7 +196,7 @@ streamlit run main.py
 
 This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
 
-## 🙏 Acknowledgments
+##  Acknowledgments
 
 - [Streamlit](https://streamlit.io/) for the amazing web framework
 - [LangChain](https://langchain.com/) for AI/LLM integration
@@ -204,11 +204,11 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 - [Pinecone](https://pinecone.io/) for vector database
 - [Hugging Face](https://huggingface.co/) for transformer models
 
-## 📞 Contact
+##  Contact
 
 - **LinkedIn**: [Abhinav Pandey](https://www.linkedin.com/in/abhinavpandey7007/)
 - **GitHub**: [Abhinav00077](https://github.com/Abhinav00077)
-- **Email**: your.email@example.com
+- **Email**: abhinavpandeyap22@gmail.com
 
 ---
 
