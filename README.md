@@ -12,6 +12,8 @@ A sophisticated PDF processing application that uses AI to intelligently answer 
 ## 🚀 Live Demo
 
 **[Try Intelliread Now](https://your-streamlit-app-url.streamlit.app)**
+<img width="1440" alt="Screenshot 2025-06-21 at 12 05 15 AM" src="https://github.com/user-attachments/assets/715bc70a-dd79-4b31-a546-5594c68a2383" />
+<img width="1440" alt="Screenshot 2025-06-21 at 12 05 38 AM" src="https://github.com/user-attachments/assets/e21a3817-a50e-4282-9256-5c9d3f8d1258" />
 
 ## ✨ Features
 
