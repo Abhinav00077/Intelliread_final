@@ -206,12 +206,12 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 
 ## 📞 Contact
 
-- **LinkedIn**: [Abhinav Pandey](https://linkedin.com/in/yourprofile)
-- **GitHub**: [@yourusername](https://github.com/yourusername)
+- **LinkedIn**: [Abhinav Pandey](https://www.linkedin.com/in/abhinavpandey7007/)
+- **GitHub**: [Abhinav00077](https://github.com/Abhinav00077)
 - **Email**: your.email@example.com
 
 ---
 
-**Made with ❤️ by Abhinav Pandey**
+**Engineered by Abhinav Pandey**
 
 *Empowering document intelligence through AI*
