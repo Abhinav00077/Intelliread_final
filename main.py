@@ -11,6 +11,8 @@ from dotenv import load_dotenv
 from tqdm.auto import tqdm
 import time
 from collections import Counter
+from pinecone import Pinecone
+import numpy as np
 
 # Local imports
 from source.extract_text import extract_text_from_pdf, save_text_to_file
@@ -19,16 +21,163 @@ from source.cleaning_pipeline import TextFilter
 # Load environment variables
 load_dotenv()
 
+class PineconeSearch:
+    """Pinecone vector database integration for semantic search"""
+    
+    def __init__(self, api_key, index_name="pdfreader"):
+        self.api_key = api_key
+        self.index_name = index_name
+        self.pc = None
+        self.index = None
+        self.initialized = False
+        
+    def initialize(self):
+        """Initialize Pinecone and connect to existing serverless index"""
+        try:
+            # Initialize Pinecone with new client
+            self.pc = Pinecone(api_key=self.api_key)
+            
+            # Check if index exists
+            indexes = self.pc.list_indexes()
+            if self.index_name in [index.name for index in indexes]:
+                self.index = self.pc.Index(self.index_name)
+                self.initialized = True
+                print(f"Successfully connected to existing serverless Pinecone index: {self.index_name}")
+                return True
+            else:
+                print(f"Index '{self.index_name}' not found. Available indexes: {[index.name for index in indexes]}")
+                print("For serverless Pinecone, make sure to create the index in the console first.")
+                return False
+            
+        except Exception as e:
+            print(f"Error initializing Pinecone: {e}")
+            return False
+    
+    def create_embeddings(self, chunks):
+        """Create simple embeddings for text chunks using TF-IDF"""
+        try:
+            from sklearn.feature_extraction.text import TfidfVectorizer
+            import numpy as np
+            
+            # Create TF-IDF vectorizer
+            vectorizer = TfidfVectorizer(max_features=384, stop_words='english')
+            
+            # Fit and transform the chunks
+            tfidf_matrix = vectorizer.fit_transform(chunks)
+            
+            # Convert to dense array and pad/truncate to 384 dimensions
+            embeddings = tfidf_matrix.toarray()
+            
+            # Pad or truncate to exactly 384 dimensions
+            if embeddings.shape[1] < 384:
+                # Pad with zeros
+                padding = np.zeros((embeddings.shape[0], 384 - embeddings.shape[1]))
+                embeddings = np.hstack([embeddings, padding])
+            elif embeddings.shape[1] > 384:
+                # Truncate
+                embeddings = embeddings[:, :384]
+            
+            print(f"Created {len(embeddings)} embeddings with {embeddings.shape[1]} dimensions")
+            return embeddings
+            
+        except Exception as e:
+            print(f"Error creating embeddings: {e}")
+            print("Falling back to text-based search...")
+            return None
+    
+    def store_vectors(self, chunks, embeddings):
+        """Store text chunks and their embeddings in Pinecone"""
+        if not self.initialized:
+            print("Pinecone not initialized. Cannot store vectors.")
+            return False
+        
+        try:
+            vectors = []
+            for i, (chunk, embedding) in enumerate(zip(chunks, embeddings)):
+                vectors.append({
+                    'id': f'chunk_{i}',
+                    'values': embedding.tolist(),
+                    'metadata': {'text': chunk, 'chunk_id': i}
+                })
+            
+            # Upsert vectors in batches
+            batch_size = 100
+            for i in range(0, len(vectors), batch_size):
+                batch = vectors[i:i + batch_size]
+                self.index.upsert(vectors=batch)
+            
+            print(f"Stored {len(vectors)} vectors in Pinecone")
+            return True
+            
+        except Exception as e:
+            print(f"Error storing vectors in Pinecone: {e}")
+            return False
+    
+    def search(self, query, top_k=5):
+        """Search for similar chunks using semantic similarity"""
+        if not self.initialized:
+            print("Pinecone not initialized. Cannot perform search.")
+            return []
+        
+        try:
+            from sklearn.feature_extraction.text import TfidfVectorizer
+            from sklearn.metrics.pairwise import cosine_similarity
+            import numpy as np
+            
+            # Create TF-IDF vectorizer for query
+            vectorizer = TfidfVectorizer(max_features=384, stop_words='english')
+            
+            # Get all stored chunks from Pinecone
+            stats = self.index.describe_index_stats()
+            total_vectors = stats.total_vector_count
+            
+            if total_vectors == 0:
+                print("No vectors found in Pinecone index")
+                return []
+            
+            # Query Pinecone to get all vectors
+            results = self.index.query(
+                vector=[0.0] * 384,  # Dummy vector to get all
+                top_k=total_vectors,
+                include_metadata=True
+            )
+            
+            # Extract chunks and create similarity matrix
+            stored_chunks = [match.metadata['text'] for match in results.matches]
+            
+            # Create TF-IDF for stored chunks + query
+            all_texts = stored_chunks + [query]
+            tfidf_matrix = vectorizer.fit_transform(all_texts)
+            
+            # Calculate cosine similarity between query and all stored chunks
+            query_vector = tfidf_matrix[-1:]  # Last vector is the query
+            chunk_vectors = tfidf_matrix[:-1]  # All except last are stored chunks
+            
+            similarities = cosine_similarity(query_vector, chunk_vectors).flatten()
+            
+            # Get top-k most similar chunks
+            top_indices = similarities.argsort()[-top_k:][::-1]
+            
+            chunks = [stored_chunks[i] for i in top_indices if similarities[i] > 0]
+            
+            return chunks
+            
+        except Exception as e:
+            print(f"Error searching in Pinecone: {e}")
+            print("Falling back to text-based search...")
+            return []
+
 class GeminiAPI:
     """Wrapper for Gemini API calls"""
     def __init__(self, api_key):
         self.api_key = api_key
         self.base_url = "https://generativelanguage.googleapis.com/v1beta"
-        self.generate_url = f"{self.base_url}/models/gemini-2.0-flash:generateContent"
+        self.generate_url = f"{self.base_url}/models/gemini-1.5-flash:generateContent"
     
     def generate_text(self, prompt, max_tokens=1000):
         """Generate text using Gemini"""
         import requests
+        import time
         
         headers = {
             'Content-Type': 'application/json',
@@ -51,14 +200,44 @@ class GeminiAPI:
             }
         }
         
-        try:
-            response = requests.post(self.generate_url, headers=headers, json=data)
-            response.raise_for_status()
-            result = response.json()
-            return result['candidates'][0]['content']['parts'][0]['text']
-        except Exception as e:
-            print(f"Error generating text: {e}")
-            return None
+        # Try multiple times with different models
+        models = [
+            "gemini-1.5-flash",
+            "gemini-1.5-pro",
+            "gemini-pro"
+        ]
+        
+        for model in models:
+            try:
+                generate_url = f"{self.base_url}/models/{model}:generateContent"
+                print(f"Trying model: {model}")
+                
+                response = requests.post(generate_url, headers=headers, json=data, timeout=30)
+                
+                if response.status_code == 200:
+                    result = response.json()
+                    if 'candidates' in result and len(result['candidates']) > 0:
+                        return result['candidates'][0]['content']['parts'][0]['text']
+                    else:
+                        print(f"No candidates in response for {model}")
+                        continue
+                elif response.status_code == 503:
+                    print(f"Service unavailable for {model}, trying next model...")
+                    time.sleep(1)
+                    continue
+                else:
+                    print(f"Error {response.status_code} for {model}: {response.text}")
+                    continue
+                    
+            except requests.exceptions.Timeout:
+                print(f"Timeout for {model}, trying next model...")
+                continue
+            except Exception as e:
+                print(f"Error with {model}: {e}")
+                continue
+        
+        print("All models failed. Please check your API key and quota.")
+        return None
 
 class ImprovedTextSearch:
     """Improved text-based search using multiple strategies"""
@@ -129,12 +308,24 @@ class SmartPDFReader:
     def __init__(self):
         """Initialize the Smart PDF Reader with API keys and configurations"""
         self.gemini_api_key = os.getenv('GEMINI_API_KEY')
+        self.pinecone_api_key = os.getenv('PINECONE_API_KEY')
         
         if not self.gemini_api_key:
             raise ValueError("GEMINI_API_KEY not found in environment variables")
         
         # Initialize Gemini API
         self.gemini = GeminiAPI(self.gemini_api_key)
+        
+        # Initialize Pinecone (optional)
+        self.pinecone_search = None
+        if self.pinecone_api_key:
+            self.pinecone_search = PineconeSearch(self.pinecone_api_key)
+            if self.pinecone_search.initialize():
+                print("Pinecone integration enabled!")
+            else:
+                print("Pinecone initialization failed. Using text-based search only.")
+                self.pinecone_search = None
+        
         self.text_search = None
         self.chunks = []
     
@@ -199,8 +390,16 @@ class SmartPDFReader:
         print(f"Question: {question}")
         print("Searching for relevant context...")
         
-        # Search for relevant chunks
-        relevant_chunks = self.text_search.search(question, k=5)
+        # Try Pinecone search first if available
+        relevant_chunks = []
+        if self.pinecone_search and self.pinecone_search.initialized:
+            print("Using Pinecone semantic search...")
+            relevant_chunks = self.pinecone_search.search(question, top_k=5)
+        
+        # Fallback to text-based search if Pinecone fails or not available
+        if not relevant_chunks:
+            print("Using text-based search...")
+            relevant_chunks = self.text_search.search(question, k=5)
         
         if not relevant_chunks:
             print("No relevant context found.")
@@ -210,7 +409,7 @@ class SmartPDFReader:
         context = "\n\n".join(relevant_chunks)
         
         # Create prompt for Gemini
-        prompt = f"""Based on the following context from Marcus Aurelius' Meditations, please answer the question.
+        prompt = f"""Based on the following context from the document, please answer the question.
 
 Context:
 {context}
@@ -250,8 +449,18 @@ Answer:"""
         self.chunks = self.split_into_sentence_chunks(text_content)
         print(f"Created {len(self.chunks)} text chunks")
         
-        # Setup improved text search
+        # Setup text-based search (always available as fallback)
         self.text_search = ImprovedTextSearch(self.chunks)
+        
+        # Setup Pinecone if available
+        if self.pinecone_search and self.pinecone_search.initialized:
+            print("Creating embeddings and storing in Pinecone...")
+            embeddings = self.pinecone_search.create_embeddings(self.chunks)
+            if embeddings is not None:
+                self.pinecone_search.store_vectors(self.chunks, embeddings)
+                print("Pinecone setup completed!")
+            else:
+                print("Failed to create embeddings. Using text-based search only.")
         
         print("PDF processing and setup completed successfully!")
         return True
@@ -281,12 +490,12 @@ def main():
         
         # Interactive question-answering
         print("\n=== Interactive Q&A Session ===")
-        print("You can now ask questions about Marcus Aurelius' Meditations.")
+        print("You can now ask questions about the document content.")
         print("Example questions:")
-        print("- What does Marcus Aurelius say about death?")
-        print("- How should one deal with difficult people?")
-        print("- What are his thoughts on virtue?")
-        print("- How does he view external circumstances?")
+        print("- What are the main topics discussed?")
+        print("- How does the author explain [specific concept]?")
+        print("- What are the key findings or conclusions?")
+        print("- How does this relate to [specific topic]?")
         print("Type 'quit' to exit.")
         
         while True:
@@ -304,6 +513,8 @@ def main():
         print(f"Error: {e}")
         print("\nMake sure you have set up your environment variables:")
         print("1. GEMINI_API_KEY - Get from https://makersuite.google.com/app/apikey")
+        print("2. PINECONE_API_KEY - Get from https://app.pinecone.io/")
+        print("3. PINECONE_ENVIRONMENT - Your Pinecone environment")
 
 if __name__ == "__main__":
     main() 

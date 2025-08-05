@@ -12,4 +12,6 @@ datasets==2.12.0
 apache_beam
 mwparserfromhell
 google-generativeai
-requests 
+requests
+sentence-transformers
+pinecone-client>=5.0.0 
