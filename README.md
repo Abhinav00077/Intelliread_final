@@ -124,6 +124,91 @@ RAG-on-PDF/
 3. Note your environment (e.g., 'us-east1-gcp')
 4. Add both to your `.env` file as `PINECONE_API_KEY` and `PINECONE_ENVIRONMENT`
 
+## Using Local LLMs (Ollama)
+
+You can also use local LLMs like Ollama Mistral instead of cloud APIs for enhanced privacy and offline capabilities.
+
+### Setting up Ollama
+
+1. **Install Ollama**:
+   ```bash
+   # macOS/Linux
+   curl -fsSL https://ollama.ai/install.sh | sh
+   
+   # Windows
+   # Download from https://ollama.ai/download
+   ```
+
+2. **Pull the Mistral model**:
+   ```bash
+   ollama pull mistral
+   ```
+
+3. **Start Ollama service**:
+   ```bash
+   ollama serve
+   ```
+
+### Modifying the Project for Local LLMs
+
+1. **Install additional dependencies**:
+   ```bash
+   pip install ollama
+   ```
+
+2. **Create a local LLM configuration**:
+   Create a new file `local_llm_config.py`:
+   ```python
+   import ollama
+   
+   class LocalLLM:
+       def __init__(self, model_name="mistral"):
+           self.model_name = model_name
+           
+       def generate_text(self, prompt, max_tokens=1000):
+           try:
+               response = ollama.chat(model=self.model_name, messages=[
+                   {
+                       'role': 'user',
+                       'content': prompt
+                   }
+               ])
+               return response['message']['content']
+           except Exception as e:
+               print(f"Error generating text: {e}")
+               return None
+   ```
+
+3. **Update main.py to use local LLM**:
+   ```python
+   # Replace GeminiAPI with LocalLLM
+   from local_llm_config import LocalLLM
+   
+   # In SmartPDFReader.__init__()
+   self.llm = LocalLLM("mistral")  # or any other model
+   ```
+
+### Available Ollama Models
+
+- **mistral**: Fast and efficient (recommended)
+- **llama2**: Meta's Llama 2 model
+- **codellama**: Specialized for code
+- **neural-chat**: Intel's optimized model
+
+### Benefits of Local LLMs
+
+- **Privacy**: No data sent to external servers
+- **Offline**: Works without internet connection
+- **Cost**: No API usage fees
+- **Customization**: Can fine-tune models for specific use cases
+- **Speed**: Lower latency for local processing
+
+### Performance Considerations
+
+- **Hardware Requirements**: Local LLMs require more RAM and GPU resources
+- **Model Size**: Larger models provide better results but need more resources
+- **Inference Speed**: Local processing may be slower than cloud APIs depending on hardware
+
 ## How It Works
 
 1. **Text Extraction**: Uses PyMuPDF to extract text from PDF documents
