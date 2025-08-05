@@ -235,11 +235,6 @@ If you encounter issues:
 1. Check that all dependencies are installed correctly
 2. Verify your API keys are valid and have sufficient credits
 3. Ensure your PDF file is accessible and contains text
-
-## License
-
-This project is licensed under the [MIT License](LICENSE).
-
 ---
 
 ## Blog
