@@ -46,13 +46,13 @@ class PineconeSearch:
                 # Minimal upsert test for debugging
                 test_vector = [{
                     'id': 'test_id',
-                    'values': [0.0] * 384,  # 384 floats
+                    'values': [0.1] + [0.0] * 383,  # 384 floats with at least one non-zero value
                     'metadata': {'text': 'test', 'chunk_id': 0}
                 }]
                 try:
-                    print("Testing upsert with a single vector:", test_vector[0])
+                    print("Testing upsert with a single vector...")
                     response = self.index.upsert(vectors=test_vector)
-                    print("Test upsert response:", response)
+                    print("Test upsert successful!")
                 except Exception as e:
                     print("Error during test upsert:", e)
                     import traceback

@@ -1,17 +1,14 @@
-torch
-transformers
-langchain==0.0.162
-openai==0.27.7
-tiktoken==0.4.0
-pinecone-client[grpc]==2.2.2
+# Core dependencies
+google-generativeai
+pinecone-client>=5.0.0
 PyMuPDF
 nltk
-tqdm
 python-dotenv
-datasets==2.12.0
-apache_beam
-mwparserfromhell
-google-generativeai
 requests
+
+# Text processing and embeddings
 sentence-transformers
-pinecone-client>=5.0.0 
+scikit-learn
+
+# Utilities
+tqdm 
