@@ -43,6 +43,20 @@ class PineconeSearch:
                 self.index = self.pc.Index(self.index_name)
                 self.initialized = True
                 print(f"Successfully connected to existing serverless Pinecone index: {self.index_name}")
+                # Minimal upsert test for debugging
+                test_vector = [{
+                    'id': 'test_id',
+                    'values': [0.0] * 384,  # 384 floats
+                    'metadata': {'text': 'test', 'chunk_id': 0}
+                }]
+                try:
+                    print("Testing upsert with a single vector:", test_vector[0])
+                    response = self.index.upsert(vectors=test_vector)
+                    print("Test upsert response:", response)
+                except Exception as e:
+                    print("Error during test upsert:", e)
+                    import traceback
+                    traceback.print_exc()
                 return True
             else:
                 print(f"Index '{self.index_name}' not found. Available indexes: {[index.name for index in indexes]}")
@@ -94,12 +108,20 @@ class PineconeSearch:
         try:
             vectors = []
             for i, (chunk, embedding) in enumerate(zip(chunks, embeddings)):
+                # Ensure embedding is a list of Python floats
+                values = [float(x) for x in embedding.tolist()]
+                # Skip vectors that are all zeros
+                if all(v == 0.0 for v in values):
+                    print(f"Skipping chunk_{i} because its embedding is all zeros.")
+                    continue
                 vectors.append({
                     'id': f'chunk_{i}',
-                    'values': embedding.tolist(),
-                    'metadata': {'text': chunk, 'chunk_id': i}
+                    'values': values,
+                    'metadata': {'text': str(chunk), 'chunk_id': int(i)}
                 })
-            
+            # Debug: print the first vector to check format
+            if vectors:
+                print("Sample vector to upsert:", vectors[0])
             # Upsert vectors in batches
             batch_size = 100
             for i in range(0, len(vectors), batch_size):
